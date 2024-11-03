@@ -19,6 +19,16 @@ interface Product {
   details: string[];
 }
 
+interface OptionData {
+  option_name: string;
+  option_value: string;
+  additional_data?: { hex?: string };
+}
+
+interface ImageData {
+  image_url: string;
+}
+
 export default function ProductPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { items, addToCart, updateQuantity, removeFromCart } = useCart();
@@ -70,18 +80,18 @@ export default function ProductPage({ params }: { params: { id: string } }) {
       }
 
       const colors = optionsData
-        ?.filter((option: { option_name: string }) => option.option_name === 'Color')
-        .map((option: { option_value: string; additional_data?: { hex?: string } }, index: number) => ({
+        ?.filter((option: OptionData) => option.option_name === 'Color')
+        .map((option: OptionData, index: number) => ({
           name: option.option_value,
           value: option.additional_data?.hex || '#000000',
           imageIndex: index,
         }));
 
       const sizes = optionsData
-        ?.filter((option: { option_name: string }) => option.option_name === 'Size')
-        .map((option: { option_value: string }) => option.option_value);
+        ?.filter((option: OptionData) => option.option_name === 'Size')
+        .map((option: OptionData) => option.option_value);
 
-      const images = imagesData?.map(image => image.image_url) || [];
+      const images = imagesData?.map((image: ImageData) => image.image_url) || [];
 
       const product = {
         id: productData.id,
@@ -91,7 +101,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
         sizes: sizes?.length ? sizes : undefined,
         images,
         description: productData.description_main || '',
-        details: productData.additional_info ? Object.values(productData.additional_info) as string[] : [],
+        details: productData.additional_info ? (Object.values(productData.additional_info) as string[]) : [],
       };
 
       setProduct(product);
@@ -254,9 +264,6 @@ export default function ProductPage({ params }: { params: { id: string } }) {
                 Add to Cart
               </button>
             )}
-
-
-
           </div>
         </div>
       </div>

@@ -10,8 +10,33 @@
 body {
   color: var(--foreground);
   background: var(--background);
+  overflow-x: hidden; /* Prevent horizontal scrolling */
+
 }
 
 .hero-gradient {
   background: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3));
 }
+
+
+
+.container {
+  margin: 0 auto;
+  padding: 0 1rem; 
+  max-width: 100%; /* Ensure it doesn't exceed the viewport width */
+  box-sizing: border-box; 
+}
+
+.navbar {
+  width: 100%;
+  max-width: 100%;
+  padding: 0 1rem; 
+  box-sizing: border-box;
+}
+
+.footer {
+  width: 100%;
+  padding: 0 1rem; 
+  box-sizing: border-box;
+}
+

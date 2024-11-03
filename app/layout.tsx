@@ -5,6 +5,8 @@ import { CartProvider } from './components/CartContext'
 import Navbar from './components/Navbar'
 import CartSlideOver from './components/CartSlideOver'
 
+import { Analytics } from '@vercel/analytics/react';
+
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
@@ -23,6 +25,7 @@ export default function RootLayout({
         <CartProvider>
           <Navbar />
           {children}
+          <Analytics />
           <CartSlideOver />
         </CartProvider>
       </body>

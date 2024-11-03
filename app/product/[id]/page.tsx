@@ -10,38 +10,41 @@ import { supabase } from '../../../supabaseClient';
 
 interface Product {
   id: number;
+  category_id: number;
   name: string;
-  price: string;
-  colors?: { name: string; value: string; imageIndex: number }[];
-  sizes?: string[];
+  price: number;
   images: string[];
   description: string;
   details: string[];
 }
 
-interface OptionData {
+interface ProductOption {
+  id: number;
   option_name: string;
+  option_type: string;
   option_value: string;
-  additional_data?: { hex?: string };
-}
-
-interface ImageData {
-  image_url: string;
+  option_order: number;
+  required: boolean;
+  inventory_status: string;
+  price_adjustment: number;
+  min_limit?: number;
+  max_limit?: number;
+  image_id?: number;
 }
 
 export default function ProductPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { items, addToCart, updateQuantity, removeFromCart } = useCart();
   const [product, setProduct] = useState<Product | null>(null);
+  const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedColor, setSelectedColor] = useState<{ name: string; value: string; imageIndex: number } | null>(null);
-  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<{ [key: string]: string }>({});
+  const [dynamicPrice, setDynamicPrice] = useState<number | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const cartItem = items.find(item => item.id === parseInt(params.id));
 
   useEffect(() => {
-    // Fetch product data from Supabase
-    async function fetchProduct() {
+    async function fetchProductData() {
       setLoading(true);
       const productId = parseInt(params.id);
 
@@ -58,11 +61,12 @@ export default function ProductPage({ params }: { params: { id: string } }) {
         return;
       }
 
-      // Fetch product options (e.g., colors, sizes)
+      // Fetch product options with order
       const { data: optionsData, error: optionsError } = await supabase
         .from('product_options')
-        .select('option_name, option_value, additional_data')
-        .eq('product_id', productId);
+        .select('*')
+        .eq('product_id', productId)
+        .order('option_order', { ascending: true });
 
       if (optionsError) {
         console.error('Error fetching product options:', optionsError);
@@ -79,191 +83,145 @@ export default function ProductPage({ params }: { params: { id: string } }) {
         console.error('Error fetching product images:', imagesError);
       }
 
-      const colors = optionsData
-        ?.filter((option: OptionData) => option.option_name === 'Color')
-        .map((option: OptionData, index: number) => ({
-          name: option.option_value,
-          value: option.additional_data?.hex || '#000000',
-          imageIndex: index,
-        }));
-
-      const sizes = optionsData
-        ?.filter((option: OptionData) => option.option_name === 'Size')
-        .map((option: OptionData) => option.option_value);
-
-      const images = imagesData?.map((image: ImageData) => image.image_url) || [];
-
+      const images = imagesData?.map((image: { image_url: string }) => image.image_url) || [];
       const product = {
         id: productData.id,
+        category_id: productData.category_id,
         name: productData.name,
-        price: `Rs. ${productData.price.toLocaleString()}`,
-        colors: colors?.length ? colors : undefined,
-        sizes: sizes?.length ? sizes : undefined,
+        price: productData.price,
         images,
         description: productData.description_main || '',
-        details: productData.additional_info ? (Object.values(productData.additional_info) as string[]) : [],
+        details: productData.additional_info ? Object.values(productData.additional_info).map(info => String(info)) : [],
       };
 
       setProduct(product);
-      setSelectedColor(colors && colors[0] ? colors[0] : null);
-      setSelectedSize(sizes && sizes[0] ? sizes[0] : null);
+      setDynamicPrice(productData.price);
+      setProductOptions(optionsData || []);
       setLoading(false);
+
+      // Auto-select the first option for each required option group
+      const initialSelections: { [key: string]: string } = {};
+      optionsData?.forEach(option => {
+        if (option.required && !initialSelections[option.option_name]) {
+          initialSelections[option.option_name] = option.option_value;
+        }
+      });
+      setSelectedOptions(initialSelections);
     }
 
-    fetchProduct();
+    fetchProductData();
   }, [params.id]);
 
-  if (loading) {
-    return <div className="pt-24 text-center">Loading...</div>;
-  }
+  useEffect(() => {
+    let adjustedPrice = product?.price || 0;
+    for (const optionKey in selectedOptions) {
+      const option = productOptions.find(opt => opt.option_value === selectedOptions[optionKey]);
+      if (option && option.price_adjustment) {
+        adjustedPrice += option.price_adjustment;
+      }
+    }
+    setDynamicPrice(adjustedPrice);
+  }, [selectedOptions, productOptions]);
 
-  if (!product) {
-    return <div className="pt-24 text-center">Product not found</div>;
-  }
-
-  const handleColorChange = (color: { name: string; value: string; imageIndex: number }) => {
-    setSelectedColor(color);
-    setCurrentImageIndex(color.imageIndex);
+  const handleOptionSelect = (optionName: string, optionValue: string, imageId?: number) => {
+    setSelectedOptions(prev => ({
+      ...prev,
+      [optionName]: optionValue, // Only one option per category
+    }));
+    if (imageId !== undefined && product?.images[imageId]) {
+      setCurrentImageIndex(imageId);
+    }
   };
 
   const handleAddToCart = () => {
-    const variant = selectedColor && selectedSize
-      ? `${selectedColor.name} - ${selectedSize}`
-      : selectedColor
-        ? selectedColor.name
-        : selectedSize
-          ? selectedSize
-          : 'Standard';
-
     addToCart({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.images[0],
-      variant,
+      id: product!.id,
+      name: product!.name,
+      price: `Rs. ${dynamicPrice!.toLocaleString()}`,
+      image: product!.images[0],
+      variant: Object.values(selectedOptions).map(value => String(value)).join(", "),
     });
   };
 
+  if (loading) return <div className="pt-24 text-center">Loading...</div>;
+  if (!product) return <div className="pt-24 text-center">Product not found</div>;
+
+  const groupedOptions = productOptions.reduce((acc, option) => {
+    if (!acc[option.option_name]) acc[option.option_name] = [];
+    if (!acc[option.option_name].some(opt => opt.option_value === option.option_value)) {
+      acc[option.option_name].push(option);
+    }
+    return acc;
+  }, {} as { [key: string]: ProductOption[] });
+
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+    <motion.div 
+      initial={{ opacity: 0 }} 
+      animate={{ opacity: 1 }} 
+      exit={{ opacity: 0 }} 
       className="pt-24 pb-20"
     >
       <div className="container mx-auto px-4">
-        <button
-          onClick={() => router.back()}
-          className="mb-8 text-gray-600 hover:text-black"
-        >
-          ← Back
-        </button>
+        <button onClick={() => router.back()} className="mb-8 text-gray-600 hover:text-black">← Back</button>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5 }}
-            className="relative aspect-square"
-          >
-            <ProductImageCarousel
-              images={product.images}
-              currentIndex={currentImageIndex}
-              setCurrentIndex={setCurrentImageIndex}
-            />
+          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative aspect-square">
+            <ProductImageCarousel images={product.images} currentIndex={currentImageIndex} setCurrentIndex={setCurrentImageIndex} />
           </motion.div>
+
           <div>
+            {/* Product Name */}
             <h1 className="text-4xl font-serif mb-4">{product.name}</h1>
-            <p className="text-2xl text-gray-800 mb-6">{product.price}</p>
 
-            {product.colors && (
-              <div className="mb-6">
-                <h3 className="text-sm font-medium mb-3">Color: {selectedColor?.name}</h3>
-                <div className="flex gap-2">
-                  {product.colors.map((color) => (
-                    <button
-                      key={color.name}
-                      onClick={() => handleColorChange(color)}
-                      className={`w-8 h-8 rounded-full border-2 ${selectedColor?.name === color.name
-                        ? 'border-black'
-                        : 'border-transparent'
-                        }`}
-                      style={{ backgroundColor: color.value }}
-                      title={color.name}
-                    />
+            {/* Price */}
+            <p className="text-2xl text-gray-800 mb-6">Rs. {dynamicPrice?.toLocaleString()}</p>
+
+            {/* Render grouped product options */}
+            {Object.keys(groupedOptions).map(optionName => (
+              <div key={optionName} className="mb-4">
+                <h3 className="text-sm font-medium mb-2">
+                  {optionName} {selectedOptions[optionName] && optionName === 'Color' ? `: ${selectedOptions[optionName]}` : ''}
+                </h3>
+                <div className="flex gap-2 flex-wrap">
+                  {groupedOptions[optionName].map(option => (
+                    <div key={option.id} className="mb-2">
+                      {option.option_type === "color" ? (
+                        <button
+                          onClick={() => handleOptionSelect(optionName, option.option_value, option.image_id)}
+                          className={`w-8 h-8 rounded-full border-4 ${selectedOptions[optionName] === option.option_value ? 'border-yellow-500' : 'border-transparent'}`}
+                          style={{ backgroundColor: option.additional_data?.hex }}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => handleOptionSelect(optionName, option.option_value)}
+                          className={`px-4 py-2 rounded ${selectedOptions[optionName] === option.option_value ? 'bg-black text-white' : 'bg-gray-200'}`}
+                        >
+                          {option.option_value}
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
-            )}
+            ))}
 
-            {product.sizes && (
-              <div className="mb-8">
-                <h3 className="text-sm font-medium mb-3">Size</h3>
-                <div className="flex flex-wrap gap-2">
-                  {product.sizes.map((size) => (
-                    <button
-                      key={size}
-                      onClick={() => setSelectedSize(size)}
-                      className={`px-4 py-2 border rounded-md ${selectedSize === size
-                        ? 'border-black bg-black text-white'
-                        : 'border-gray-200 hover:border-black'
-                        }`}
-                    >
-                      {size}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
+            {/* Description */}
             <p className="text-gray-600 mb-8">{product.description}</p>
-            <div className="mb-8">
-              <h2 className="font-medium mb-4">Product Details</h2>
-              <ul className="list-disc list-inside space-y-2 text-gray-600">
-                {product.details.map((detail, index) => (
-                  <li key={index}>{detail}</li>
-                ))}
-              </ul>
+
+            {/* Add to Cart */}
+            <div className="flex items-center gap-4 mt-6">
+              {cartItem ? (
+                <div className="flex items-center gap-2">
+                  <button onClick={() => cartItem.quantity === 1 ? removeFromCart(product.id) : updateQuantity(product.id, cartItem.quantity - 1)} className="text-red-500 hover:bg-gray-100 p-2 rounded-full">
+                    {cartItem.quantity === 1 ? <TrashIcon className="h-5 w-5" /> : <MinusIcon className="h-5 w-5" />}
+                  </button>
+                  <span className="text-xl">{cartItem.quantity}</span>
+                  <button onClick={() => updateQuantity(product.id, cartItem.quantity + 1)} className="p-2 hover:bg-gray-100 rounded-full"><PlusIcon className="h-5 w-5" /></button>
+                </div>
+              ) : (
+                <button onClick={handleAddToCart} className="w-full md:w-auto bg-black text-white px-6 py-3 rounded-full hover:bg-gray-800 transition">Add to Cart</button>
+              )}
             </div>
-
-            {cartItem ? (
-              <div className="flex items-center gap-4 mb-8">
-                {/* Conditional for showing Trash or Minus Icon */}
-                {cartItem.quantity === 1 ? (
-                  <button
-                    onClick={() => removeFromCart(product.id)}
-                    className="p-2 hover:bg-gray-100 rounded-full transition-colors text-red-500 hover:text-red-600"
-                  >
-                    <TrashIcon className="h-5 w-5" />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => updateQuantity(product.id, cartItem.quantity - 1)}
-                    className="p-2 hover:bg-gray-100 rounded-full"
-                  >
-                    <MinusIcon className="h-5 w-5" />
-                  </button>
-                )}
-
-                {/* Quantity display - Centered */}
-                <span className="text-xl text-center min-w-[20px]">{cartItem.quantity}</span>
-
-                {/* Plus Icon */}
-                <button
-                  onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
-                  className="p-2 hover:bg-gray-100 rounded-full"
-                >
-                  <PlusIcon className="h-5 w-5" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleAddToCart}
-                className="w-full md:w-auto bg-black text-white px-8 py-3 rounded-full hover:bg-gray-800 transition"
-              >
-                Add to Cart
-              </button>
-            )}
           </div>
         </div>
       </div>
