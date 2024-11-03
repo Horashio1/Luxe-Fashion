@@ -9,9 +9,11 @@ import Link from 'next/link';
 export default function CartSlideOver() {
   const { items, isCartOpen, setIsCartOpen, removeFromCart, updateQuantity } = useCart();
 
+  // Calculate the total price in real-time
   const total = items.reduce((sum, item) => {
-    const price = parseFloat(item.price.replace('$', '').replace(',', ''));
-    return sum + price * item.quantity;
+    // Parse the price after removing "Rs." and commas
+    const price = parseFloat(item.price.replace('Rs.', '').replace(',', ''));
+    return sum + (price * item.quantity);
   }, 0);
 
   const handleRemoveItem = (id: number) => {
@@ -77,7 +79,7 @@ export default function CartSlideOver() {
                           </div>
                           <div className="flex-1">
                             <h3 className="font-medium">{item.name}</h3>
-                            <p className="text-gray-600">{item.price}</p>
+                            <p className="text-gray-600">Rs. {parseFloat(item.price.replace('Rs.', '').replace(',', '')).toLocaleString()}</p>
                             {item.variant && (
                               <p className="text-sm text-gray-500">{item.variant}</p>
                             )}
@@ -116,7 +118,7 @@ export default function CartSlideOver() {
               <div className="border-t pt-6 mt-6 space-y-4">
                 <div className="flex justify-between mb-4">
                   <span>Total</span>
-                  <span className="font-medium">${total.toLocaleString()}</span>
+                  <span className="font-medium">Rs. {total.toLocaleString()}</span>
                 </div>
                 <Link
                   href="/checkout"

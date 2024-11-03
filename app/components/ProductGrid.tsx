@@ -21,6 +21,7 @@ export default function ProductGrid({ products }: { products: Product[] }) {
     router.push(`/product/${productId}`);
   };
 
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
       {products.map((product) => {
@@ -37,7 +38,7 @@ export default function ProductGrid({ products }: { products: Product[] }) {
             className="group relative bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow"
           >
             <div 
-              className="relative aspect-[3/4] mb-4 overflow-hidden rounded-lg cursor-pointer"
+              className="relative aspect-[1/1] mb-4 overflow-hidden rounded-lg cursor-pointer"
               onClick={() => handleProductClick(product.id)}
             >
               <Image

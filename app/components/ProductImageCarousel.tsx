@@ -32,11 +32,13 @@ export default function ProductImageCarousel({
   }, [images.length, controlledIndex]);
 
   const handlePrevious = () => {
-    setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
+    const newIndex = (currentIndex - 1 + images.length) % images.length;
+    setCurrentIndex(newIndex);
   };
 
   const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % images.length);
+    const newIndex = (currentIndex + 1) % images.length;
+    setCurrentIndex(newIndex);
   };
 
   return (

@@ -1,50 +1,58 @@
-import ProductGrid from '../components/ProductGrid';
+'use client'
 
-const womenProducts = [
-  {
-    id: 1,
-    name: 'Silk Evening Dress',
-    price: '$2,890',
-    image: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d'
-  },
-  {
-    id: 2,
-    name: 'Cashmere Coat',
-    price: '$3,450',
-    image: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d'
-  },
-  {
-    id: 3,
-    name: 'Designer Handbag',
-    price: '$1,890',
-    image: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d'
-  },
-  {
-    id: 4,
-    name: 'Leather Boots',
-    price: '$990',
-    image: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d'
-  },
-  {
-    id: 5,
-    name: 'Wool Blazer',
-    price: '$1,590',
-    image: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d'
-  },
-  {
-    id: 6,
-    name: 'Silk Blouse',
-    price: '$790',
-    image: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d'
-  }
-];
+import { useEffect, useState } from 'react';
+import ProductGrid from '../components/ProductGrid';
+import { supabase } from '../../supabaseClient';
+
+interface Product {
+  id: number;
+  name: string;
+  price: string;
+  image: string;
+}
 
 export default function WomenPage() {
+  const [womenProducts, setWomenProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    // Fetch women’s products from Supabase
+    async function fetchWomenProducts() {
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          id, 
+          name, 
+          price, 
+          product_images(image_url)
+        `)
+        .eq('category_id', 1)
+        .eq('product_images.is_main', true); // Filter for main images
+
+      if (error) {
+        console.error('Error fetching products:', error);
+      } else {
+        console.log('Fetched products:', data);
+        // Transform data to match ProductGrid structure
+        const products = data.map((product: any) => ({
+          id: product.id,
+          name: product.name,
+          price: `Rs. ${product.price.toLocaleString()}`,
+          image: product.product_images?.[0]?.image_url || '', // Use the main image
+        }));
+
+        console.log('Transformed products:', products); // Log the transformed products
+        setWomenProducts(products);
+      }
+    }
+
+    fetchWomenProducts();
+  }, []);
+
   return (
     <div className="pt-24 pb-20">
       <div className="container mx-auto px-4">
-        <h1 className="text-4xl font-serif mb-8">Women's Collection</h1>
-        <ProductGrid products={womenProducts} />
+        <h1 className="text-4xl font-serif mb-8">Women&apos;s Collection</h1>
+        <ProductGrid products={womenProducts as Product[]} />
       </div>
     </div>
   );
