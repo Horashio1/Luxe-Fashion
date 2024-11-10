@@ -74,7 +74,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
 
       const { data: imagesData, error: imagesError } = await supabase
         .from('product_images')
-        .select('image_url')
+        .select('url')
         .eq('product_id', productId)
         .order('sort_order', { ascending: true });
 
@@ -82,7 +82,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
         console.error('Error fetching product images:', imagesError);
       }
 
-      const images = imagesData?.map((image: { image_url: string }) => image.image_url) || [];
+      const images = imagesData?.map((image: { url: string }) => image.url) || [];
       const product: Product = {
         id: productData.id,
         category_id: productData.category_id,

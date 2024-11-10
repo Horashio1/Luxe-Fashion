@@ -23,7 +23,7 @@ export default function WomenPage() {
           id, 
           name, 
           price, 
-          product_images(image_url)
+          product_images(url)
         `)
         .eq('category_id', 1)
         .eq('product_images.is_main', true); // Filter for main images
@@ -37,7 +37,9 @@ export default function WomenPage() {
           id: product.id,
           name: product.name,
           price: `Rs. ${product.price.toLocaleString()}`,
-          image: product.product_images?.[0]?.image_url || '', // Use the main image
+          // image: product.product_images?.[0]?.image_url || '', // Use the main image
+          image: product.product_images?.[0]?.url || '', // Use the main image
+
         }));
 
         console.log('Transformed products:', products); // Log the transformed products
