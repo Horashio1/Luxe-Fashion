@@ -63,7 +63,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
       }
 
       const { data: optionsData, error: optionsError } = await supabase
-        .from('product_options')
+        .from('product_optionss')
         .select('*')
         .eq('product_id', productId)
         .order('option_order', { ascending: true });
