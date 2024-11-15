@@ -10,6 +10,8 @@ import { motion } from 'framer-motion';
 import ProductImageCarousel from '../../components/ProductImageCarousel';
 import { supabase } from '../../../supabaseClient';
 
+
+
 interface Product {
   id: number;
   category_id: number;
@@ -156,7 +158,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
           initialSelections[option.name] = availableValues[0];
           // If the option value has an image_id, set the main image to it
           if (availableValues[0].image_id) {
-            const imageIndex = images.findIndex((img) => img.id === availableValues[0].image_id);
+            const imageIndex = images.findIndex((img: { id: number; url: string }) => img.id === availableValues[0].image_id);
             if (imageIndex !== -1) {
               setCurrentImageIndex(imageIndex);
             }
