@@ -330,11 +330,11 @@ export default function ProductPage({ params }: { params: { id: string } }) {
                             {/* Diagonal Line for Sold Out (except color*/}
                             {isSoldOut && (
                               <div className="absolute inset-1 flex items-center justify-center">
-                                <div className="absolute w-[1.5px] h-0.5 bg-red-500 transform rotate-45"
+                                <div className="w-full h-0.5 bg-red-500 transform rotate-45"
                                       style={{
                                         top: 0,
                                         left: '50%',
-                                        width: '141.42%',
+                                        width: '121.42%',
                                         transformOrigin: 'center',
                                       }}
                                 ></div>
