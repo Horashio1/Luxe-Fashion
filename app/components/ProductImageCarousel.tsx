@@ -1,3 +1,5 @@
+// app\components\ProductImageCarousel.tsx
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -11,10 +13,10 @@ interface ProductImageCarouselProps {
   setCurrentIndex?: (index: number) => void;
 }
 
-export default function ProductImageCarousel({ 
-  images, 
+export default function ProductImageCarousel({
+  images,
   currentIndex: controlledIndex,
-  setCurrentIndex: setControlledIndex 
+  setCurrentIndex: setControlledIndex,
 }: ProductImageCarouselProps) {
   const [internalIndex, setInternalIndex] = useState(0);
   const currentIndex = controlledIndex ?? internalIndex;
@@ -100,6 +102,7 @@ export default function ProductImageCarousel({
             fill
             className="object-cover rounded-lg"
             priority
+            sizes="(max-width: 768px) 100vw, 50vw"
           />
         </motion.div>
       </AnimatePresence>

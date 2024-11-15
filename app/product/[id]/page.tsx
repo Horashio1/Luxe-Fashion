@@ -1,3 +1,5 @@
+// Luxe-Fashion/app/product/[id]/page.tsx
+
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -13,24 +15,30 @@ interface Product {
   category_id: number;
   name: string;
   price: number;
-  images: string[];
+  images: { id: number; url: string }[];
   description: string;
   details: string[];
 }
 
+interface OptionValue {
+  id: number;
+  option_id: number;
+  name: string;
+  price_adjustment: number;
+  availability_status: string;
+  sort_order: number;
+  image_id: number | null;
+  hex_code: string | null;
+}
+
 interface ProductOption {
   id: number;
-  option_name: string;
-  option_type: string;
-  option_value: string;
-  option_order: number;
-  required: boolean;
-  inventory_status: string;
-  price_adjustment: number;
-  min_limit?: number;
-  max_limit?: number;
-  image_id?: number;
-  additional_data?: { hex?: string };
+  product_id: number;
+  name: string;
+  type: string;
+  is_required: boolean;
+  sort_order: number;
+  option_values: OptionValue[];
 }
 
 export default function ProductPage({ params }: { params: { id: string } }) {
@@ -39,7 +47,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
   const [product, setProduct] = useState<Product | null>(null);
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedOptions, setSelectedOptions] = useState<{ [key: string]: string }>({});
+  const [selectedOptions, setSelectedOptions] = useState<{ [key: string]: OptionValue }>({});
   const [dynamicPrice, setDynamicPrice] = useState<number | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
@@ -50,6 +58,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
       setLoading(true);
       const productId = parseInt(params.id);
 
+      // Fetch product details
       const { data: productData, error: productError } = await supabase
         .from('products')
         .select('*')
@@ -62,19 +71,28 @@ export default function ProductPage({ params }: { params: { id: string } }) {
         return;
       }
 
+      // Fetch product options and their option values
       const { data: optionsData, error: optionsError } = await supabase
-        .from('product_optionss')
-        .select('*')
+        .from('product_options')
+        .select(
+          `
+          *,
+          option_values (
+            *
+          )
+        `
+        )
         .eq('product_id', productId)
-        .order('option_order', { ascending: true });
+        .order('sort_order', { ascending: true });
 
       if (optionsError) {
         console.error('Error fetching product options:', optionsError);
       }
 
+      // Fetch product images
       const { data: imagesData, error: imagesError } = await supabase
         .from('product_images')
-        .select('url')
+        .select('id, url')
         .eq('product_id', productId)
         .order('sort_order', { ascending: true });
 
@@ -82,7 +100,12 @@ export default function ProductPage({ params }: { params: { id: string } }) {
         console.error('Error fetching product images:', imagesError);
       }
 
-      const images = imagesData?.map((image: { url: string }) => image.url) || [];
+      const images =
+        imagesData?.map((image: { id: number; url: string }) => ({
+          id: image.id,
+          url: image.url,
+        })) || [];
+
       const product: Product = {
         id: productData.id,
         category_id: productData.category_id,
@@ -95,16 +118,49 @@ export default function ProductPage({ params }: { params: { id: string } }) {
           : [],
       };
 
+      // Map options and sort their values
+      const mappedOptions: ProductOption[] =
+        optionsData?.map((option: any) => ({
+          id: option.id,
+          product_id: option.product_id,
+          name: option.name,
+          type: option.type,
+          is_required: option.is_required,
+          sort_order: option.sort_order,
+          option_values: option.option_values
+            .map((ov: any) => ({
+              id: ov.id,
+              option_id: ov.option_id,
+              name: ov.name,
+              price_adjustment: parseFloat(ov.price_adjustment) || 0,
+              availability_status: ov.availability_status,
+              sort_order: ov.sort_order,
+              image_id: ov.image_id,
+              hex_code: ov.hex_code,
+            }))
+            .sort((a: OptionValue, b: OptionValue) => a.sort_order - b.sort_order),
+        })) || [];
+
       setProduct(product);
-      setDynamicPrice(productData.price);
-      setProductOptions(optionsData || []);
+      setDynamicPrice(product.price);
+      setProductOptions(mappedOptions);
       setLoading(false);
 
-      // Auto-select the first option for each required option group
-      const initialSelections: { [key: string]: string } = {};
-      optionsData?.forEach((option: ProductOption) => {
-        if (option.required && !initialSelections[option.option_name]) {
-          initialSelections[option.option_name] = option.option_value;
+      // Auto-select the first available option for each required option group
+      const initialSelections: { [key: string]: OptionValue } = {};
+      mappedOptions.forEach((option) => {
+        const availableValues = option.option_values.filter(
+          (ov) => ov.availability_status.toLowerCase().trim() !== 'sold out'
+        );
+        if (option.is_required && availableValues.length > 0) {
+          initialSelections[option.name] = availableValues[0];
+          // If the option value has an image_id, set the main image to it
+          if (availableValues[0].image_id) {
+            const imageIndex = images.findIndex((img) => img.id === availableValues[0].image_id);
+            if (imageIndex !== -1) {
+              setCurrentImageIndex(imageIndex);
+            }
+          }
         }
       });
       setSelectedOptions(initialSelections);
@@ -117,22 +173,25 @@ export default function ProductPage({ params }: { params: { id: string } }) {
     if (product) {
       let adjustedPrice = product.price;
       for (const optionKey in selectedOptions) {
-        const option = productOptions.find((opt) => opt.option_value === selectedOptions[optionKey]);
-        if (option?.price_adjustment) {
-          adjustedPrice += option.price_adjustment;
+        const optionValue = selectedOptions[optionKey];
+        if (optionValue.price_adjustment) {
+          adjustedPrice += optionValue.price_adjustment;
         }
       }
       setDynamicPrice(adjustedPrice);
     }
   }, [selectedOptions, productOptions, product]);
 
-  const handleOptionSelect = (optionName: string, optionValue: string, imageId?: number) => {
+  const handleOptionSelect = (optionName: string, optionValue: OptionValue) => {
     setSelectedOptions((prev) => ({
       ...prev,
       [optionName]: optionValue,
     }));
-    if (imageId !== undefined && product?.images[imageId]) {
-      setCurrentImageIndex(imageId);
+    if (optionValue.image_id !== null) {
+      const imageIndex = product?.images.findIndex((img) => img.id === optionValue.image_id);
+      if (imageIndex !== undefined && imageIndex !== -1 && product?.images[imageIndex]) {
+        setCurrentImageIndex(imageIndex);
+      }
     }
   };
 
@@ -142,8 +201,10 @@ export default function ProductPage({ params }: { params: { id: string } }) {
         id: product.id,
         name: product.name,
         price: `Rs. ${dynamicPrice.toLocaleString()}`,
-        image: product.images[0],
-        variant: Object.values(selectedOptions).join(', '),
+        image: product.images[currentImageIndex]?.url || product.images[0]?.url,
+        variant: Object.values(selectedOptions)
+          .map((ov) => ov.name)
+          .join(', '),
       });
     }
   };
@@ -151,13 +212,8 @@ export default function ProductPage({ params }: { params: { id: string } }) {
   if (loading) return <div className="pt-24 text-center">Loading...</div>;
   if (!product) return <div className="pt-24 text-center">Product not found</div>;
 
-  const groupedOptions = productOptions.reduce((acc, option) => {
-    if (!acc[option.option_name]) acc[option.option_name] = [];
-    if (!acc[option.option_name].some((opt) => opt.option_value === option.option_value)) {
-      acc[option.option_name].push(option);
-    }
-    return acc;
-  }, {} as { [key: string]: ProductOption[] });
+  // Sort product options by sort_order
+  const sortedProductOptions = [...productOptions].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pt-24 pb-20">
@@ -167,61 +223,169 @@ export default function ProductPage({ params }: { params: { id: string } }) {
         </button>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative aspect-square">
-            <ProductImageCarousel images={product.images} currentIndex={currentImageIndex} setCurrentIndex={setCurrentImageIndex} />
+          {/* Image Carousel Section */}
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative">
+            {/* Ensuring the main image has a fixed height */}
+            <div className="relative w-full h-[500px]">
+              <ProductImageCarousel
+                images={product.images.map((img) => img.url)}
+                currentIndex={currentImageIndex}
+                setCurrentIndex={setCurrentImageIndex}
+              />
+            </div>
+            {/* Mini Carousel (Thumbnails) */}
+            <div className="flex mt-4 space-x-2 overflow-x-auto">
+              {product.images.map((img, index) => (
+                <button
+                  key={img.id}
+                  onClick={() => setCurrentImageIndex(index)}
+                  className={`w-16 h-16 md:w-20 md:h-20 border ${
+                    currentImageIndex === index ? 'border-black' : 'border-transparent'
+                  } rounded-md`}
+                >
+                  <img
+                    src={img.url}
+                    alt={`Thumbnail ${index + 1}`}
+                    className="w-full h-full object-cover rounded-md"
+                  />
+                </button>
+              ))}
+            </div>
           </motion.div>
 
+          {/* Product Details Section */}
           <div>
-            <h1 className="text-4xl font-serif mb-4">{product.name}</h1>
+            <h1 className="text-3xl md:text-4xl font-serif mb-2">{product.name}</h1>
+
             <p className="text-2xl text-gray-800 mb-6">Rs. {dynamicPrice?.toLocaleString()}</p>
 
-            {Object.keys(groupedOptions).map((optionName) => (
-              <div key={optionName} className="mb-4">
-                <h3 className="text-sm font-medium mb-2">
-                  {optionName} {selectedOptions[optionName] && optionName === 'Color' ? `: ${selectedOptions[optionName]}` : ''}
+            {/* Product Options */}
+            {sortedProductOptions.map((option) => (
+              <div key={option.name} className="mb-6">
+                <h3 className="text-sm font-medium mb-2 flex items-center">
+                  {option.name}
+                  {!option.is_required && <span className="text-gray-500 ml-1">(optional)</span>}
+                  {option.name.toLowerCase() === 'color' && selectedOptions[option.name] && (
+                    <span className="text-gray-500">: {selectedOptions[option.name].name}</span>
+                  )}
                 </h3>
                 <div className="flex gap-2 flex-wrap">
-                  {groupedOptions[optionName].map((option) => (
-                    <div key={option.id} className="mb-2">
-                      {option.option_type === 'color' ? (
-                        <button
-                          onClick={() => handleOptionSelect(optionName, option.option_value, option.image_id)}
-                          className={`w-8 h-8 rounded-full border-4 ${
-                            selectedOptions[optionName] === option.option_value ? 'border-yellow-500' : 'border-transparent'
-                          }`}
-                          style={{ backgroundColor: option.additional_data?.hex }}
-                        />
-                      ) : (
-                        <button
-                          onClick={() => handleOptionSelect(optionName, option.option_value)}
-                          className={`px-4 py-2 rounded ${
-                            selectedOptions[optionName] === option.option_value ? 'bg-black text-white' : 'bg-gray-200'
-                          }`}
-                        >
-                          {option.option_value}
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                  {option.option_values.map((optionValue) => {
+                    const isSelected = selectedOptions[option.name]?.id === optionValue.id;
+                    const availabilityStatus = optionValue.availability_status.toLowerCase().trim();
+                    const isSoldOut = availabilityStatus === 'sold out';
+                    const isLimited = availabilityStatus === 'limited stock';
+
+                    return (
+                      <div key={`${option.name}-${optionValue.id}`} className="relative">
+                        {option.type.toLowerCase() === 'color' ? (
+                          <button
+                            onClick={() => {
+                              if (isSoldOut) return; // Prevent selection if sold out
+                              handleOptionSelect(option.name, optionValue);
+                            }}
+                            className={`relative w-10 h-10 rounded-full ${
+                              isSelected ? 'border-2 border-black p-0.5' : 'border-2 border-transparent'
+                            } flex items-center justify-center ${
+                              isSoldOut && !isSelected ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                          >
+                            <span
+                              className="w-full h-full rounded-full"
+                              style={{
+                                backgroundColor: optionValue.hex_code ? `#${optionValue.hex_code}` : '#ffffff',
+                              }}
+                            ></span>
+                            {/* Diagonal Line for Sold Out */}
+                            {isSoldOut && (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-full h-0.5 bg-red-600 transform rotate-45"></div>
+                              </div>
+                            )}
+                            {/* Inventory Status Labels */}
+                            {isLimited && (
+                              <span className="absolute bottom-[-1.5rem] left-1/2 transform -translate-x-1/2 mt-1 text-xs text-white bg-red-500 px-1 rounded">
+                                Limited
+                              </span>
+                            )}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              if (isSoldOut) return;
+                              handleOptionSelect(option.name, optionValue);
+                            }}
+                            className={`relative px-2 py-2 rounded ${
+                              isSelected ? 'bg-black text-white' : 'bg-gray-200 text-gray-700'
+                            } ${
+                              isSoldOut && !isSelected
+                                ? 'opacity-50 cursor-not-allowed'
+                                : 'transition-colors duration-200'
+                            }`}
+
+                          >
+                            {optionValue.name}
+                            {/* Diagonal Line for Sold Out (except color*/}
+                            {isSoldOut && (
+                              <div className="absolute inset-1 flex items-center justify-center">
+                                <div className="absolute w-[1.5px] h-0.5 bg-red-500 transform rotate-45"
+                                      style={{
+                                        top: 0,
+                                        left: '50%',
+                                        width: '141.42%',
+                                        transformOrigin: 'center',
+                                      }}
+                                ></div>
+                              </div>
+                            )}
+                            {/* Inventory Status Labels */}
+                            {isLimited && (
+                              <span className="absolute bottom-[-1.5rem] left-1/2 transform -translate-x-1/2 mt-1 text-xs text-white bg-red-500 px-1 rounded">
+                                Limited
+                              </span>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
 
             <p className="text-gray-600 mb-8">{product.description}</p>
 
+            {/* Add to Cart Section */}
             <div className="flex items-center gap-4 mt-6">
               {cartItem ? (
                 <div className="flex items-center gap-2">
-                  <button onClick={() => cartItem.quantity === 1 ? removeFromCart(product.id) : updateQuantity(product.id, cartItem.quantity - 1)} className="text-red-500 hover:bg-gray-100 p-2 rounded-full">
-                    {cartItem.quantity === 1 ? <TrashIcon className="h-5 w-5" /> : <MinusIcon className="h-5 w-5" />}
+                  <button
+                    onClick={() =>
+                      cartItem.quantity === 1
+                        ? removeFromCart(product.id)
+                        : updateQuantity(product.id, cartItem.quantity - 1)
+                    }
+                    className="text-red-500 hover:bg-gray-100 p-2 rounded-full"
+                  >
+                    {cartItem.quantity === 1 ? (
+                      <TrashIcon className="h-5 w-5" />
+                    ) : (
+                      <MinusIcon className="h-5 w-5" />
+                    )}
                   </button>
                   <span className="text-xl">{cartItem.quantity}</span>
-                  <button onClick={() => updateQuantity(product.id, cartItem.quantity + 1)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <button
+                    onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
+                    className="p-2 hover:bg-gray-100 rounded-full"
+                  >
                     <PlusIcon className="h-5 w-5" />
                   </button>
                 </div>
               ) : (
-                <button onClick={handleAddToCart} className="w-full md:w-auto bg-black text-white px-6 py-3 rounded-full hover:bg-gray-800 transition">
+                <button
+                  onClick={handleAddToCart}
+                  className="w-full md:w-auto bg-black text-white px-6 py-3 rounded-full hover:bg-gray-800 transition"
+                >
                   Add to Cart
                 </button>
               )}
