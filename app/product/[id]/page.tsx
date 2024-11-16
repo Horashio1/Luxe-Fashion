@@ -1,5 +1,3 @@
-// Luxe-Fashion/app/product/[id]/page.tsx
-
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -9,8 +7,6 @@ import { MinusIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import ProductImageCarousel from '../../components/ProductImageCarousel';
 import { supabase } from '../../../supabaseClient';
-
-
 
 interface Product {
   id: number;
@@ -52,6 +48,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
   const [selectedOptions, setSelectedOptions] = useState<{ [key: string]: OptionValue }>({});
   const [dynamicPrice, setDynamicPrice] = useState<number | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [optionButtonWidths, setOptionButtonWidths] = useState<{ [key: string]: string }>({});
 
   const cartItem = items.find((item) => item.id === parseInt(params.id));
 
@@ -158,7 +155,9 @@ export default function ProductPage({ params }: { params: { id: string } }) {
           initialSelections[option.name] = availableValues[0];
           // If the option value has an image_id, set the main image to it
           if (availableValues[0].image_id) {
-            const imageIndex = images.findIndex((img: { id: number; url: string }) => img.id === availableValues[0].image_id);
+            const imageIndex = images.findIndex(
+              (img: { id: number; url: string }) => img.id === availableValues[0].image_id
+            );
             if (imageIndex !== -1) {
               setCurrentImageIndex(imageIndex);
             }
@@ -166,6 +165,33 @@ export default function ProductPage({ params }: { params: { id: string } }) {
         }
       });
       setSelectedOptions(initialSelections);
+
+      // Calculate maximum width for each option (excluding 'color')
+      const widths: { [key: string]: number } = {};
+
+      mappedOptions.forEach((option) => {
+        if (option.type.toLowerCase() !== 'color') {
+          let maxLength = 0;
+          option.option_values.forEach((ov) => {
+            const length = ov.name.length;
+            if (length > maxLength) {
+              maxLength = length;
+            }
+          });
+          widths[option.name] = maxLength;
+        }
+      });
+
+      // Map the lengths to widths in pixels and ensure minimum width of 50px
+      const optionWidths: { [key: string]: string } = {};
+      for (const [optionName, length] of Object.entries(widths)) {
+        // Assuming average character width of 10px, add some padding
+        let widthPx = length * 10 + 20; // Add 20px for padding
+        if (widthPx < 50) widthPx = 50; // Ensure minimum width of 50px
+        optionWidths[optionName] = `${widthPx}px`;
+      }
+
+      setOptionButtonWidths(optionWidths);
     }
 
     fetchProductData();
@@ -241,9 +267,9 @@ export default function ProductPage({ params }: { params: { id: string } }) {
                 <button
                   key={img.id}
                   onClick={() => setCurrentImageIndex(index)}
-                  className={`w-16 h-16 md:w-20 md:h-20 border ${
-                    currentImageIndex === index ? 'border-black' : 'border-transparent'
-                  } rounded-md`}
+                  className={`w-16 h-16 md:w-20 md:h-20 ${
+                    currentImageIndex === index ? 'border-b-2 border-black' : ''
+                  } pb-1`}
                 >
                   <img
                     src={img.url}
@@ -279,74 +305,79 @@ export default function ProductPage({ params }: { params: { id: string } }) {
                     const isLimited = availabilityStatus === 'limited stock';
 
                     return (
-                      <div key={`${option.name}-${optionValue.id}`} className="relative">
+                      <div key={`${option.name}-${optionValue.id}`} className="relative flex flex-col items-center">
                         {option.type.toLowerCase() === 'color' ? (
-                          <button
-                            onClick={() => {
-                              if (isSoldOut) return; // Prevent selection if sold out
-                              handleOptionSelect(option.name, optionValue);
-                            }}
-                            className={`relative w-10 h-10 rounded-full ${
-                              isSelected ? 'border-2 border-black p-0.5' : 'border-2 border-transparent'
-                            } flex items-center justify-center ${
-                              isSoldOut && !isSelected ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
-                          >
-                            <span
-                              className="w-full h-full rounded-full"
-                              style={{
-                                backgroundColor: optionValue.hex_code ? `#${optionValue.hex_code}` : '#ffffff',
+                          <>
+                            <button
+                              onClick={() => {
+                                if (isSoldOut) return; // Prevent selection if sold out
+                                handleOptionSelect(option.name, optionValue);
                               }}
-                            ></span>
-                            {/* Diagonal Line for Sold Out */}
-                            {isSoldOut && (
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-full h-0.5 bg-red-600 transform rotate-45"></div>
-                              </div>
-                            )}
+                              className={`relative w-10 h-10 rounded-full ${
+                                isSelected ? 'border-2 border-black p-0.5' : 'border-2 border-transparent'
+                              } flex items-center justify-center ${
+                                isSoldOut && !isSelected ? 'opacity-50 cursor-not-allowed' : ''
+                              }`}
+                            >
+                              <span
+                                className="w-full h-full rounded-full"
+                                style={{
+                                  backgroundColor: optionValue.hex_code ? `#${optionValue.hex_code}` : '#ffffff',
+                                }}
+                              ></span>
+                              {/* Diagonal Line for Sold Out */}
+                              {isSoldOut && (
+                                <div className="absolute inset-0">
+                                  <svg className="w-full h-full">
+                                    <line x1="0" y1="0" x2="100%" y2="100%" stroke="red" strokeWidth="2" />
+                                  </svg>
+                                </div>
+                              )}
+                            </button>
                             {/* Inventory Status Labels */}
                             {isLimited && (
-                              <span className="absolute bottom-[-1.5rem] left-1/2 transform -translate-x-1/2 mt-1 text-xs text-white bg-red-500 px-1 rounded">
+                              <span className="mt-1 text-xs text-white bg-red-500 px-1 rounded">
                                 Limited
                               </span>
                             )}
-                          </button>
+                          </>
                         ) : (
-                          <button
-                            onClick={() => {
-                              if (isSoldOut) return;
-                              handleOptionSelect(option.name, optionValue);
-                            }}
-                            className={`relative px-2 py-2 rounded ${
-                              isSelected ? 'bg-black text-white' : 'bg-gray-200 text-gray-700'
-                            } ${
-                              isSoldOut && !isSelected
-                                ? 'opacity-50 cursor-not-allowed'
-                                : 'transition-colors duration-200'
-                            }`}
-
-                          >
-                            {optionValue.name}
-                            {/* Diagonal Line for Sold Out (except color*/}
-                            {isSoldOut && (
-                              <div className="absolute inset-1 flex items-center justify-center">
-                                <div className="w-full h-0.5 bg-red-500 transform rotate-45"
-                                      style={{
-                                        top: 0,
-                                        left: '50%',
-                                        width: '121.42%',
-                                        transformOrigin: 'center',
-                                      }}
-                                ></div>
-                              </div>
-                            )}
+                          <>
+                            <button
+                              onClick={() => {
+                                if (isSoldOut) return;
+                                handleOptionSelect(option.name, optionValue);
+                              }}
+                              className={`relative px-2 py-2 rounded text-center ${
+                                isSelected ? 'bg-black text-white' : 'bg-gray-200 text-gray-700'
+                              } ${
+                                isSoldOut && !isSelected
+                                  ? 'opacity-50 cursor-not-allowed'
+                                  : 'transition-colors duration-200'
+                              }`}
+                              style={{
+                                width: optionButtonWidths[option.name] || 'auto',
+                                minWidth: '50px',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {optionValue.name}
+                              {/* Diagonal Line for Sold Out */}
+                              {isSoldOut && (
+                                <div className="absolute inset-0">
+                                  <svg className="w-full h-full">
+                                    <line x1="0" y1="0" x2="100%" y2="100%" stroke="red" strokeWidth="2" />
+                                  </svg>
+                                </div>
+                              )}
+                            </button>
                             {/* Inventory Status Labels */}
                             {isLimited && (
-                              <span className="absolute bottom-[-1.5rem] left-1/2 transform -translate-x-1/2 mt-1 text-xs text-white bg-red-500 px-1 rounded">
+                              <span className="mt-1 text-xs text-white bg-red-500 px-1 rounded">
                                 Limited
                               </span>
                             )}
-                          </button>
+                          </>
                         )}
                       </div>
                     );
