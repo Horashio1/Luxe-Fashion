@@ -1,10 +1,10 @@
-// app\components\ProductImageCarousel.tsx
+// app/components/ProductImageCarousel.tsx
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 interface ProductImageCarouselProps {
@@ -22,10 +22,29 @@ export default function ProductImageCarousel({
   const currentIndex = controlledIndex ?? internalIndex;
   const setCurrentIndex = setControlledIndex ?? setInternalIndex;
 
-  // Swipe states
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState(0);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [carouselWidth, setCarouselWidth] = useState(0);
+
+  // Preload images
+  useEffect(() => {
+    images.forEach((src) => {
+      const img = new window.Image();
+      img.src = src;
+    });
+  }, [images]);
+
+  // Update carousel width on mount and resize
+  useEffect(() => {
+    const updateWidth = () => {
+      if (carouselRef.current) {
+        setCarouselWidth(carouselRef.current.offsetWidth);
+      }
+    };
+
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
 
   useEffect(() => {
     if (controlledIndex === undefined) {
@@ -46,66 +65,41 @@ export default function ProductImageCarousel({
     setCurrentIndex(newIndex);
   };
 
-  // Handle touch start
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStart(e.targetTouches[0].clientX);
-    setDragging(false);
-    setDragOffset(0);
-  };
-
-  // Handle touch move with drag effect
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStart !== null) {
-      const currentTouch = e.targetTouches[0].clientX;
-      const offset = currentTouch - touchStart;
-      setDragging(true);
-      setDragOffset(offset);
+  const handleDragEnd = (event: any, info: any) => {
+    if (info.offset.x < -50 && currentIndex < images.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    } else if (info.offset.x > 50 && currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
     }
-  };
-
-  // Handle touch end
-  const handleTouchEnd = () => {
-    if (dragging && dragOffset !== 0) {
-      const swipeThreshold = 50; // Minimum swipe distance in pixels to be considered a swipe
-      if (dragOffset > swipeThreshold) {
-        handlePrevious(); // Swipe right
-      } else if (dragOffset < -swipeThreshold) {
-        handleNext(); // Swipe left
-      }
-    }
-    // Reset states
-    setTouchStart(null);
-    setDragging(false);
-    setDragOffset(0);
   };
 
   return (
-    <div
-      className="relative w-full h-full group"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentIndex}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.1 }}
-          style={{ x: dragging ? dragOffset : 0 }}
-          className="relative w-full h-full"
-        >
-          <Image
-            src={images[currentIndex]}
-            alt="Product image"
-            fill
-            className="object-cover rounded-lg"
-            priority
-            sizes="(max-width: 768px) 100vw, 50vw"
-          />
-        </motion.div>
-      </AnimatePresence>
+    <div className="relative w-full h-full overflow-hidden group">
+      <motion.div
+        ref={carouselRef}
+        className="flex h-full"
+        animate={{ x: -currentIndex * carouselWidth }}
+        drag="x"
+        dragConstraints={{ left: -((images.length - 1) * carouselWidth), right: 0 }}
+        dragElastic={0.05}
+        // dragTransition={{ bounceStiffness: 6000, bounceDamping: 200 }}
+        // transition={{ duration: 0.2, ease: 'easeInOut' }}
+        transition={{ duration: 0.2}}
+
+        onDragEnd={handleDragEnd}
+      >
+        {images.map((src, index) => (
+          <div key={index} className="w-full h-full flex-shrink-0 relative">
+            <Image
+              src={src}
+              alt="Product image"
+              fill
+              className="object-cover rounded-lg"
+              sizes="(max-width: 768px) 100vw, 50vw"
+            />
+          </div>
+        ))}
+      </motion.div>
 
       {/* Previous Button */}
       <button
