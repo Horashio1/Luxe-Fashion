@@ -18,7 +18,7 @@ export default function Navbar() {
         <div className="container mx-auto px-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <MobileNav />
-            <Link href="/" className="text-2xl font-serif">LUXE</Link>
+            <Link href="/" className="text-2xl font-serif">SOSGOG</Link>
           </div>
           <div className="hidden md:flex space-x-8">
             <Link href="/women" className="hover:text-gray-600">Women</Link>
