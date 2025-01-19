@@ -1,17 +1,14 @@
-import './globals.css'
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import { CartProvider } from './components/CartContext'
-import Navbar from './components/Navbar'
-import CartSlideOver from './components/CartSlideOver'
+import './globals.css'
 
+import { CartProvider } from './components/CartContext'
+import CartSlideOver from './components/CartSlideOver'
 import { Analytics } from '@vercel/analytics/react';
 
-const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'LUXE - Luxury Fashion',
-  description: 'Premium fashion and accessories',
+  title: 'SOS GOG - Luxury Fashion',
+  description: 'The future of luxury fashion',
 }
 
 export default function RootLayout({
@@ -21,14 +18,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <CartProvider>
-          <Navbar />
-          {children}
-          <Analytics />
-          <CartSlideOver />
+      
+      <body>
+      <CartProvider>
+        {children}
+        <Analytics />
+        <CartSlideOver />
         </CartProvider>
-      </body>
+        </body>
+      
     </html>
   )
 }
