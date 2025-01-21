@@ -6,7 +6,7 @@ import { LuxuryAnimation } from './components/LuxuryAnimation';
 export default function Home() {
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden">
-      <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-20" />
+      <div className="absolute inset-0 bg-[url('https://res.cloudinary.com/ddqtjwpob/image/upload/v1737488091/Collage_1_1_kljuw5.png')] bg-cover bg-center opacity-20" />
       
       <LuxuryAnimation />
       
